@@ -26,8 +26,8 @@ This Discord bot is designed to manage and interact with the Karlsen Network com
 
 1. **Clone the repository**:
     ```sh
-    git clone https://github.com/karlsen-network/Karlsen-Network-Discord-Bot.git
-    cd Karlsen-Network-Discord-Bot
+    git clone https://github.com/karlsen-network/Karlsen-Discord-Bot.git
+    cd Karlsen-Discord-Bot
     ```
 
 2. **Install dependencies**:
