@@ -46,7 +46,6 @@ This Discord bot is designed to manage and interact with the Karlsen Network com
 
 Update the configuration variables in `bot.py` to match your server setup:
 
-- `GENERAL_CHAT_ID`
 - `CATEGORY_ID`
 - `ROLE_ID`
 - `MEMBER_COUNT_CHANNEL_ID`

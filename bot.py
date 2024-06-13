@@ -22,7 +22,6 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 # Channel and role IDs
-GENERAL_CHAT_ID = XXXXXXXXXXXXXXXXXX
 CATEGORY_ID = XXXXXXXXXXXXXXXXXX
 ROLE_ID = XXXXXXXXXXXXXXXXXX
 MEMBER_COUNT_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
@@ -41,7 +40,6 @@ SPAM_TIMEOUT = timedelta(minutes=X)
 
 # Initialize tracking variables
 join_times = []
-message_count = defaultdict(int)
 user_message_history = defaultdict(lambda: deque(maxlen=SPAM_THRESHOLD))
 user_warned = {}
 
@@ -333,8 +331,6 @@ async def on_message(message):
         await handle_banned_keyword(message)
 
     await handle_spam(message)
-    if message.channel.id == GENERAL_CHAT_ID:
-        await handle_general_chat(message)
     await bot.process_commands(message)
 
 async def handle_banned_keyword(message):
@@ -372,12 +368,6 @@ async def handle_spam(message):
                 await message.author.timeout(SPAM_TIMEOUT, reason="Spamming the same message multiple times in a row.")
             except Exception as e:
                 logging.error(f"Failed to timeout user {message.author}: {e}")
-
-async def handle_general_chat(message):
-    message_count[message.author.id] += 1
-    if message_count[message.author.id] % 3 == 0 and not message.content.startswith('/ask'):
-        response = await ask_openai_assistant(message.content)
-        await message.channel.send(f"Karlsen Ai: {response}")
 
 @bot.command(name='b')
 async def check_balance(ctx, *, address: str):
