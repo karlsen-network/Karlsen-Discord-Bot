@@ -21,7 +21,11 @@ intents = discord.Intents.all()
 # Set the command prefix
 bot = commands.Bot(command_prefix='/', intents=intents)
 
+# Guild ID
+GUILD_ID = XXXXXXXXXXXXXXXXXX
+
 # Channel and role IDs
+GENERAL_CHAT_ID = XXXXXXXXXXXXXXXXXX
 CATEGORY_ID = XXXXXXXXXXXXXXXXXX
 ROLE_ID = XXXXXXXXXXXXXXXXXX
 MEMBER_COUNT_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
@@ -40,6 +44,7 @@ SPAM_TIMEOUT = timedelta(minutes=X)
 
 # Initialize tracking variables
 join_times = []
+message_count = defaultdict(int)
 user_message_history = defaultdict(lambda: deque(maxlen=SPAM_THRESHOLD))
 user_warned = {}
 
@@ -67,11 +72,9 @@ CHANNEL_IDS = {
 # Initialize max supply
 MAX_SUPPLY = None
 
-BANNED_KEYWORDS = [ 
-    "Word1","Word2", "Word3", "Word4", "Word5",
-]
+BANNED_KEYWORDS = ["Word1", "Word2", "Word3", "Word4", "Word5"]
 
-# Rest API 
+# Rest API
 async def get_data(url, headers={'accept': 'application/json'}, as_json=True):
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
@@ -196,7 +199,7 @@ def generate_channel_name(channel_name, data, calculate_supply_percentage=False,
 # Background tasks
 async def set_category_name():
     await bot.wait_until_ready()
-    guild = discord.utils.get(bot.guilds, name="Karlsen Network")
+    guild = discord.utils.get(bot.guilds, id=GUILD_ID)
     if guild:
         category = discord.utils.get(guild.categories, id=CATEGORY_ID)
         if category:
@@ -207,7 +210,7 @@ async def set_max_supply():
     global MAX_SUPPLY
     MAX_SUPPLY = await get_max_supply()
     await bot.wait_until_ready()
-    guild = discord.utils.get(bot.guilds, name="Karlsen Network")
+    guild = discord.utils.get(bot.guilds, id=GUILD_ID)
     if guild and MAX_SUPPLY:
         channel_id = CHANNEL_IDS.get("Max Supply:")
         new_name = f"Max Supply: {MAX_SUPPLY / 1e9:.3f} billion"
@@ -215,7 +218,7 @@ async def set_max_supply():
 
 async def update_channels():
     await bot.wait_until_ready()
-    guild = discord.utils.get(bot.guilds, name="Karlsen Network")
+    guild = discord.utils.get(bot.guilds, id=GUILD_ID)
     if guild:
         while True:
             try:
@@ -315,9 +318,7 @@ async def on_message(message):
     logging.debug(f"Message author's display name: {message.author.display_name}")
 
     # Check for flagged keywords in display name
-    flagged_keywords = [
-    "Word1","Word2", "Word3", "Word4", "Word5",
-    ]
+    flagged_keywords = ["Word1", "Word2", "Word3", "Word4", "Word5"]
 
     display_name_contains_flagged_keyword = any(keyword.lower() in message.author.display_name.lower() for keyword in flagged_keywords)
 
@@ -331,23 +332,33 @@ async def on_message(message):
         await handle_banned_keyword(message)
 
     await handle_spam(message)
+
+    # Respond to every 4th message in the general chat
+    if message.channel.id == GENERAL_CHAT_ID:
+        message_count[GENERAL_CHAT_ID] += 1
+        if message_count[GENERAL_CHAT_ID] % 4 == 0:
+            response = await ask_openai_assistant(message.content)
+            await message.channel.send(f"{message.author.mention} {response}")
+
     await bot.process_commands(message)
 
 async def handle_banned_keyword(message):
+    keyword = next((word for word in BANNED_KEYWORDS if word.lower() in message.content.lower()), "a banned word")
     await send_dm(message.author, f"Your message in {message.guild.name} contained banned content and was deleted.")
     await asyncio.sleep(1)  # Wait for the message to be sent before banning
-    await message.guild.ban(message.author, reason="Message contained banned content.")
-    logging.warning(f"Banned {message.author.name} for sending a message with banned content (ID: {message.author.id})")
+    await message.guild.ban(message.author, reason=f"Message contained banned content: '{keyword}'")
+    logging.warning(f"Banned {message.author.name} for sending a message with banned content (ID: {message.author.id}), keyword: '{keyword}'")
     await log_action(message.guild, f"Banned {message.author.name} for sending a message with banned content (ID: {message.author.id})")
     # Delete their messages from the past 7 days
     await delete_recent_messages(message.guild, message.author.id, timedelta(days=7))
 
 async def handle_suspicious_change(member, reason):
+    detected_member_name = member.display_name  # Log the member's display name
     await send_dm(member, f"You have been banned from {member.guild.name} due to suspicious activity related to a flagged {reason}.")
     await asyncio.sleep(1)  # Wait for the message to be sent before banning
     await member.guild.ban(member, reason=reason)
-    logging.warning(f"Banned {member.name} due to {reason} (ID: {member.id})")
-    await log_action(member.guild, f"Banned {member.name} due to {reason} (ID: {member.id})")
+    logging.warning(f"Banned {detected_member_name} due to suspicious activity: {reason} (ID: {member.id})")
+    await log_action(member.guild, f"Banned {detected_member_name} due to suspicious activity: {reason} (ID: {member.id})")
     # Delete their messages from the past 7 days
     await delete_recent_messages(member.guild, member.id, timedelta(days=7))
 
@@ -471,8 +482,8 @@ async def fetch_final_result(headers, thread_id, run_id):
 
 @bot.command(name='ask')
 async def ask_kls(ctx, *, question: str):
-    if ctx.channel.id != COMMAND_LOG_CHANNEL_ID:
-        await ctx.send(f"This command can only be used in the designated channel.")
+    if ctx.channel.id not in [COMMAND_LOG_CHANNEL_ID, GENERAL_CHAT_ID]:
+        await ctx.send(f"This command can only be used in the designated channels.")
         return
     try:
         response = await ask_openai_assistant(question)
@@ -498,15 +509,6 @@ async def commands_command(ctx):
    - Description: Provides an intelligent response to your question using OpenAI's Assistants API.
     """
     await ctx.send(help_text)
-
-async def handle_suspicious_change(member, reason):
-    await send_dm(member, f"You have been banned from {member.guild.name} due to suspicious activity related to a flagged {reason}.")
-    await asyncio.sleep(1)  # Wait for the message to be sent before banning
-    await member.guild.ban(member, reason=reason)
-    logging.warning(f"Banned {member.name} due to {reason} (ID: {member.id})")
-    await log_action(member.guild, f"Banned {member.name} due to {reason} (ID: {member.id})")
-    # Delete their messages from the past 7 days
-    await delete_recent_messages(member.guild, member.id, timedelta(days=7))
 
 async def send_dm(member, message):
     for _ in range(3):
