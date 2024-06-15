@@ -338,7 +338,7 @@ async def on_message(message):
         message_count[GENERAL_CHAT_ID] += 1
         if message_count[GENERAL_CHAT_ID] % 4 == 0:
             response = await ask_openai_assistant(message.content)
-            await message.channel.send(f"{message.author.mention} {response}")
+            await message.reply(response)
 
     await bot.process_commands(message)
 
@@ -348,7 +348,7 @@ async def handle_banned_keyword(message):
     await asyncio.sleep(1)  # Wait for the message to be sent before banning
     await message.guild.ban(message.author, reason=f"Message contained banned content: '{keyword}'")
     logging.warning(f"Banned {message.author.name} for sending a message with banned content (ID: {message.author.id}), keyword: '{keyword}'")
-    await log_action(message.guild, f"Banned {message.author.name} for sending a message with banned content (ID: {message.author.id})")
+    await log_action(message.guild, f"Banned {message.author.name} for sending a message with banned content (ID: {message.author.id}), keyword: '{keyword}'")
     # Delete their messages from the past 7 days
     await delete_recent_messages(message.guild, message.author.id, timedelta(days=7))
 
@@ -372,11 +372,11 @@ async def handle_spam(message):
     if len(user_history) == SPAM_THRESHOLD and all(msg == message.content for msg in user_history):
         if message.author.id not in user_warned or (now - user_warned[message.author.id]) > SPAM_TIMEOUT:
             user_warned[message.author.id] = now
-            await message.channel.send(f"{message.author.mention} has been timed out for 15 minutes for spamming the same message multiple times in a row.")
-            logging.info(f"User {message.author} timed out for spamming.")
             user_message_history[message.author.id].clear()
             try:
                 await message.author.timeout(SPAM_TIMEOUT, reason="Spamming the same message multiple times in a row.")
+                await message.channel.send(f"{message.author.mention} has been timed out for 15 minutes for spamming the same message multiple times in a row.")
+                logging.info(f"User {message.author} timed out for spamming.")
             except Exception as e:
                 logging.error(f"Failed to timeout user {message.author}: {e}")
 
@@ -482,7 +482,7 @@ async def fetch_final_result(headers, thread_id, run_id):
 
 @bot.command(name='ask')
 async def ask_kls(ctx, *, question: str):
-    if ctx.channel.id not in [COMMAND_LOG_CHANNEL_ID, GENERAL_CHAT_ID]:
+    if ctx.channel.id != COMMAND_LOG_CHANNEL_ID:
         await ctx.send(f"This command can only be used in the designated channels.")
         return
     try:
@@ -531,8 +531,21 @@ async def log_action(guild, message):
 async def delete_recent_messages(guild, user_id, time_limit):
     now = datetime.now(timezone.utc)
     for channel in guild.text_channels:
-        async for message in channel.history(limit=10000, after=now - time_limit):
-            if message.author.id == user_id:
-                await message.delete()
+        try:
+            async for message in channel.history(limit=10000, after=now - time_limit):
+                if message.author.id == user_id:
+                    try:
+                        await message.delete()
+                        await asyncio.sleep(1)  # Add a delay to avoid hitting rate limits
+                    except discord.errors.NotFound:
+                        print(f"Message {message.id} not found, skipping.")
+                    except discord.errors.Forbidden:
+                        print(f"Missing permissions to delete message {message.id}.")
+                    except discord.errors.HTTPException as e:
+                        print(f"Failed to delete message {message.id}: {e}")
+        except discord.errors.Forbidden:
+            print(f"Missing permissions to read history in channel {channel.name}.")
+        except discord.errors.HTTPException as e:
+            print(f"Failed to retrieve history in channel {channel.name}: {e}")
 
 bot.run(TOKEN)
