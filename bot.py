@@ -13,7 +13,7 @@ ASSISTANT_ID = 'XXXXXXXXXXXXXXXXXX'  # Replace with your Assistant ID
 TOKEN = 'XXXXXXXXXXXXXXXXXX'  # Replace with your bot token
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 # intents with all access
 intents = discord.Intents.all()
