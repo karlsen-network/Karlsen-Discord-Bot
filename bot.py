@@ -13,7 +13,7 @@ ASSISTANT_ID = 'XXXXXXXXXXXXXXXXXX'  # Replace with your Assistant ID
 TOKEN = 'XXXXXXXXXXXXXXXXXX'  # Replace with your bot token
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 # intents with all access
 intents = discord.Intents.all()
@@ -48,14 +48,6 @@ message_count = defaultdict(int)
 user_message_history = defaultdict(lambda: deque(maxlen=SPAM_THRESHOLD))
 user_warned = {}
 
-# Dictionary to store channel information for anti-delete protection
-channel_info = {
-    1204156044498960394: {'name': '🔗︱official-links', 'category': 1169939685280337932, 'type': 'text'},
-    1173718234852229161: {'name': '📢︱announcements', 'category': 1169939685280337932, 'type': 'text'},
-    1174835788874260581: {'name': '⇝  INTERNATIONAL ⇜', 'category': None, 'type': 'text'}
-    # add more channels here
-}
-
 # Channel IDs for various metrics
 CHANNEL_IDS = {
     "Price:": XXXXXXXXXXXXXXXXXX,
@@ -66,7 +58,8 @@ CHANNEL_IDS = {
     "Nethash:": XXXXXXXXXXXXXXXXXX,
     "cBlock:": XXXXXXXXXXXXXXXXXX,
     "nBlock": XXXXXXXXXXXXXXXXXX,
-    "nReduction:": XXXXXXXXXXXXXXXXXX
+    "nReduction:": XXXXXXXXXXXXXXXXXX,
+    "24h Volume:": XXXXXXXXXXXXXXXXXX
 }
 
 # Initialize max supply
@@ -132,6 +125,15 @@ async def get_marketcap():
             marketcap = (await response.json())['marketcap']
             logging.info(f"Marketcap fetched: {marketcap}")
             return marketcap
+        
+async def get_24h_volume():
+    url = "https://api.coingecko.com/api/v3/coins/karlsen"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers={"accept": "application/json"}) as response:
+            data = await response.json()
+            volume_24h = data["market_data"]["total_volume"]["usd"]
+            logging.info(f"24h volume fetched: {volume_24h}")
+            return volume_24h
 
 # Update channel names with data
 async def update_or_create_channel(guild, channel_id, channel_name, new_name):
@@ -144,12 +146,10 @@ async def update_or_create_channel(guild, channel_id, channel_name, new_name):
             else:
                 new_channel = await guild.create_voice_channel(new_name, category=discord.utils.get(guild.categories, id=CATEGORY_ID))
                 CHANNEL_IDS[channel_name] = new_channel.id
-                channel_info[new_channel.id] = {'name': new_name, 'category': CATEGORY_ID, 'type': 'voice'}
                 logging.info(f"Created channel {new_name} with ID {new_channel.id}")
         else:
             new_channel = await guild.create_voice_channel(new_name, category=discord.utils.get(guild.categories, id=CATEGORY_ID))
             CHANNEL_IDS[channel_name] = new_channel.id
-            channel_info[new_channel.id] = {'name': new_name, 'category': CATEGORY_ID, 'type': 'voice'}
             logging.info(f"Created channel {new_name} with ID {new_channel.id}")
     except discord.errors.HTTPException as e:
         if e.status == 429:
@@ -194,6 +194,8 @@ def generate_channel_name(channel_name, data, calculate_supply_percentage=False,
         return f"{channel_name} {data:.3f}"
     if channel_name == "Price:":
         return f"{channel_name} {data:.6f} $"
+    if channel_name == "24h Volume:":
+        return f"{channel_name} {data:.1f} $"
     return f"{channel_name} {data:.3e}" if isinstance(data, float) else f"{channel_name} {data}"
 
 # Background tasks
@@ -231,6 +233,7 @@ async def update_channels():
                 await update_channel(guild, "nReduction:", get_halving_data, next_reduction=True)
                 await update_channel(guild, "Price:", get_price)
                 await update_channel(guild, "mcap:", get_marketcap, marketcap=True)
+                await update_channel(guild, "24h Volume:", get_24h_volume)
                 await update_member_count(guild, ROLE_ID, MEMBER_COUNT_CHANNEL_ID)
                 logging.info("Finished channel updates")
             except Exception as e:
@@ -293,22 +296,6 @@ async def handle_raid(member, reason):
     await log_action(member.guild, f"Banned {member.name} due to {reason} (ID: {member.id})")
 
 @bot.event
-async def on_guild_channel_delete(channel):
-    logging.info(f"Channel deleted: {channel.name}")
-    await log_action(channel.guild, f"Channel deleted: {channel.name}")
-    if channel.id in channel_info:
-        await recreate_channel(channel.guild, channel_info[channel.id])
-
-async def recreate_channel(guild, info):
-    if info['type'] == 'voice':
-        new_channel = await guild.create_voice_channel(info['name'], category=guild.get_channel(info['category']))
-    else:
-        new_channel = await guild.create_text_channel(info['name'], category=guild.get_channel(info['category']))
-    channel_info[new_channel.id] = info
-    logging.info(f"Recreated channel {info['name']} after deletion")
-    await log_action(guild, f"Recreated channel {info['name']} after deletion")
-
-@bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
@@ -333,10 +320,10 @@ async def on_message(message):
 
     await handle_spam(message)
 
-    # Respond to every 4th message in the general chat
+    # Respond to every 50th message in the general chat
     if message.channel.id == GENERAL_CHAT_ID:
         message_count[GENERAL_CHAT_ID] += 1
-        if message_count[GENERAL_CHAT_ID] % 4 == 0:
+        if message_count[GENERAL_CHAT_ID] % 50 == 0:
             response = await ask_openai_assistant(message.content)
             await message.reply(response)
 
@@ -383,7 +370,7 @@ async def handle_spam(message):
 @bot.command(name='b')
 async def check_balance(ctx, *, address: str):
     if ctx.channel.id != COMMAND_LOG_CHANNEL_ID:
-        await ctx.send(f"This command can only be used in the designated channel.")
+        await ctx.send("This command can only be used in the designated channel.")
         return
     logging.info(f"Processing /b command: {address}")
     balance = await get_wallet_balance(address)
@@ -483,7 +470,7 @@ async def fetch_final_result(headers, thread_id, run_id):
 @bot.command(name='ask')
 async def ask_kls(ctx, *, question: str):
     if ctx.channel.id != COMMAND_LOG_CHANNEL_ID:
-        await ctx.send(f"This command can only be used in the designated channels.")
+        await ctx.send("This command can only be used in the designated channels.")
         return
     try:
         response = await ask_openai_assistant(question)
@@ -495,7 +482,7 @@ async def ask_kls(ctx, *, question: str):
 @bot.command(name='commands')
 async def commands_command(ctx):
     if ctx.channel.id != COMMAND_LOG_CHANNEL_ID:
-        await ctx.send(f"This command can only be used in the designated channel.")
+        await ctx.send("This command can only be used in the designated channel.")
         return
     help_text = """
 **Available Commands:**
