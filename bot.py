@@ -195,7 +195,7 @@ def generate_channel_name(channel_name, data, calculate_supply_percentage=False,
     if channel_name == "Price:":
         return f"{channel_name} {data:.6f} $"
     if channel_name == "24h Volume:":
-        return f"{channel_name} {data:.2f} $"
+        return f"{channel_name} {data:.1f} $"
     return f"{channel_name} {data:.3e}" if isinstance(data, float) else f"{channel_name} {data}"
 
 # Background tasks
