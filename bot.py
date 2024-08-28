@@ -48,14 +48,6 @@ message_count = defaultdict(int)
 user_message_history = defaultdict(lambda: deque(maxlen=SPAM_THRESHOLD))
 user_warned = {}
 
-# Dictionary to store channel information for anti-delete protection
-channel_info = {
-    1204156044498960394: {'name': '🔗︱official-links', 'category': 1169939685280337932, 'type': 'text'},
-    1173718234852229161: {'name': '📢︱announcements', 'category': 1169939685280337932, 'type': 'text'},
-    1174835788874260581: {'name': '⇝  INTERNATIONAL ⇜', 'category': None, 'type': 'text'}
-    # add more channels here
-}
-
 # Channel IDs for various metrics
 CHANNEL_IDS = {
     "Price:": XXXXXXXXXXXXXXXXXX,
@@ -154,12 +146,10 @@ async def update_or_create_channel(guild, channel_id, channel_name, new_name):
             else:
                 new_channel = await guild.create_voice_channel(new_name, category=discord.utils.get(guild.categories, id=CATEGORY_ID))
                 CHANNEL_IDS[channel_name] = new_channel.id
-                channel_info[new_channel.id] = {'name': new_name, 'category': CATEGORY_ID, 'type': 'voice'}
                 logging.info(f"Created channel {new_name} with ID {new_channel.id}")
         else:
             new_channel = await guild.create_voice_channel(new_name, category=discord.utils.get(guild.categories, id=CATEGORY_ID))
             CHANNEL_IDS[channel_name] = new_channel.id
-            channel_info[new_channel.id] = {'name': new_name, 'category': CATEGORY_ID, 'type': 'voice'}
             logging.info(f"Created channel {new_name} with ID {new_channel.id}")
     except discord.errors.HTTPException as e:
         if e.status == 429:
@@ -304,22 +294,6 @@ async def handle_raid(member, reason):
     await member.guild.ban(member, reason=reason)
     logging.warning(f"Banned {member.name} due to {reason} (ID: {member.id})")
     await log_action(member.guild, f"Banned {member.name} due to {reason} (ID: {member.id})")
-
-@bot.event
-async def on_guild_channel_delete(channel):
-    logging.info(f"Channel deleted: {channel.name}")
-    await log_action(channel.guild, f"Channel deleted: {channel.name}")
-    if channel.id in channel_info:
-        await recreate_channel(channel.guild, channel_info[channel.id])
-
-async def recreate_channel(guild, info):
-    if info['type'] == 'voice':
-        new_channel = await guild.create_voice_channel(info['name'], category=guild.get_channel(info['category']))
-    else:
-        new_channel = await guild.create_text_channel(info['name'], category=guild.get_channel(info['category']))
-    channel_info[new_channel.id] = info
-    logging.info(f"Recreated channel {info['name']} after deletion")
-    await log_action(guild, f"Recreated channel {info['name']} after deletion")
 
 @bot.event
 async def on_message(message):
