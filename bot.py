@@ -396,7 +396,7 @@ async def handle_spam(message):
 @bot.command(name='b')
 async def check_balance(ctx, *, address: str):
     if ctx.channel.id != COMMAND_LOG_CHANNEL_ID:
-        await ctx.send(f"This command can only be used in the designated channel.")
+        await ctx.send("This command can only be used in the designated channel.")
         return
     logging.info(f"Processing /b command: {address}")
     balance = await get_wallet_balance(address)
@@ -496,7 +496,7 @@ async def fetch_final_result(headers, thread_id, run_id):
 @bot.command(name='ask')
 async def ask_kls(ctx, *, question: str):
     if ctx.channel.id != COMMAND_LOG_CHANNEL_ID:
-        await ctx.send(f"This command can only be used in the designated channels.")
+        await ctx.send("This command can only be used in the designated channels.")
         return
     try:
         response = await ask_openai_assistant(question)
@@ -508,7 +508,7 @@ async def ask_kls(ctx, *, question: str):
 @bot.command(name='commands')
 async def commands_command(ctx):
     if ctx.channel.id != COMMAND_LOG_CHANNEL_ID:
-        await ctx.send(f"This command can only be used in the designated channel.")
+        await ctx.send("This command can only be used in the designated channel.")
         return
     help_text = """
 **Available Commands:**
