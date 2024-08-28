@@ -66,7 +66,8 @@ CHANNEL_IDS = {
     "Nethash:": XXXXXXXXXXXXXXXXXX,
     "cBlock:": XXXXXXXXXXXXXXXXXX,
     "nBlock": XXXXXXXXXXXXXXXXXX,
-    "nReduction:": XXXXXXXXXXXXXXXXXX
+    "nReduction:": XXXXXXXXXXXXXXXXXX,
+    "24h Volume:": XXXXXXXXXXXXXXXXXX
 }
 
 # Initialize max supply
@@ -132,6 +133,15 @@ async def get_marketcap():
             marketcap = (await response.json())['marketcap']
             logging.info(f"Marketcap fetched: {marketcap}")
             return marketcap
+        
+async def get_24h_volume():
+    url = "https://api.coingecko.com/api/v3/coins/karlsen"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers={"accept": "application/json"}) as response:
+            data = await response.json()
+            volume_24h = data["market_data"]["total_volume"]["usd"]
+            logging.info(f"24h volume fetched: {volume_24h}")
+            return volume_24h
 
 # Update channel names with data
 async def update_or_create_channel(guild, channel_id, channel_name, new_name):
@@ -194,6 +204,8 @@ def generate_channel_name(channel_name, data, calculate_supply_percentage=False,
         return f"{channel_name} {data:.3f}"
     if channel_name == "Price:":
         return f"{channel_name} {data:.6f} $"
+    if channel_name == "24h Volume:":
+        return f"{channel_name} {data:.2f} $"
     return f"{channel_name} {data:.3e}" if isinstance(data, float) else f"{channel_name} {data}"
 
 # Background tasks
@@ -231,6 +243,7 @@ async def update_channels():
                 await update_channel(guild, "nReduction:", get_halving_data, next_reduction=True)
                 await update_channel(guild, "Price:", get_price)
                 await update_channel(guild, "mcap:", get_marketcap, marketcap=True)
+                await update_channel(guild, "24h Volume:", get_24h_volume)
                 await update_member_count(guild, ROLE_ID, MEMBER_COUNT_CHANNEL_ID)
                 logging.info("Finished channel updates")
             except Exception as e:
@@ -333,10 +346,10 @@ async def on_message(message):
 
     await handle_spam(message)
 
-    # Respond to every 4th message in the general chat
+    # Respond to every 50th message in the general chat
     if message.channel.id == GENERAL_CHAT_ID:
         message_count[GENERAL_CHAT_ID] += 1
-        if message_count[GENERAL_CHAT_ID] % 4 == 0:
+        if message_count[GENERAL_CHAT_ID] % 50 == 0:
             response = await ask_openai_assistant(message.content)
             await message.reply(response)
 
