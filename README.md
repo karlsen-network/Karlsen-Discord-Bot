@@ -5,7 +5,7 @@ This Discord bot is designed to manage and interact with the Karlsen Network com
 ## Features
 
 - **Channel Updates**: Automatically updates channel names with the latest Karlsen Network statistics.
-- **Member Management**: Handles member verification and provides anti-raid and anti-spam measures.
+- **Member Management**: Handles member verification and anti-spam measures.
 - **AI Assistance**: Uses OpenAI's Assistant API to respond to user queries and provide AI-driven insights.
 - **Username Monitoring**: Monitors usernames and nicknames for flagged keywords and bans users if a keyword is found.
 - **Keyword Ban List**: Monitors messages for banned keywords and takes action if any are found.
@@ -47,7 +47,7 @@ This Discord bot is designed to manage and interact with the Karlsen Network com
 Update the configuration variables in `bot.py` to match your server setup:
 
 - `GUILD_ID`
-- `GENERAL_CHAT_ID`
+- `OFFTOPIC_CHAT_ID`
 - `CATEGORY_ID`
 - `ROLE_ID`
 - `MEMBER_COUNT_CHANNEL_ID`
@@ -73,9 +73,8 @@ python bot.py
 ## Username Monitoring
 
 The bot monitors usernames and nicknames for the following flagged keywords:
-- "bannedword1"
-- "bannedword2"
-- "bannedword3"
+- "Name1", "Name2", "Name3", "Name4", "Name5"
+- Add more keywords as needed
 
 If a username or nickname contains any of these keywords, the user is automatically banned and a log entry is created.
 
@@ -84,9 +83,7 @@ We have repeatedly observed a recurring behavior where phishing scammers frequen
 ## Keyword Ban List
 
 The bot monitors messages for the following banned keywords:
-- "bannedword1"
-- "bannedword2"
-- "bannedword3"
+- "Word1", "Word2", "Word3", "Word4", "Word5"
 - Add more keywords as needed
 
 If a message contains any of these banned keywords, the message is deleted, the user is banned, and a log entry is created.
@@ -190,4 +187,3 @@ The bot uses the OpenAI Assistant API to generate AI-driven responses to user qu
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
-
