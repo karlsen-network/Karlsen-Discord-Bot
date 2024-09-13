@@ -220,7 +220,10 @@ def generate_channel_name(
         circulating_supply = data
         mined_supply_percentage = (circulating_supply / MAX_SUPPLY) * 100
     if convert_hashrate:
-        return f"Hashrate: {round(data, 1):.1f} Th/s"
+        if data < 1:
+            return f"Hashrate: {round(data * 1000, 2):.2f} GH/s"
+        else:
+            return f"Hashrate: {round(data, 2):.2f} TH/s"
     if next_reward:
         return f"nBlock: {data['nextHalvingAmount']:.3f}⏬"
     if next_reduction:
