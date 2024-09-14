@@ -68,6 +68,7 @@ python bot.py
 
 - `/b <address>`: Check the balance of a specified wallet address.
 - `/ask <question>`: Ask the OpenAI Assistant a question.
+- `/c <hashrate_in_MH/s>`: Calculates and displays estimated mining rewards based on the provided hashrate in MH/s
 - `/commands`: List all available bot commands.
 
 ## Username Monitoring

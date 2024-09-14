@@ -38,6 +38,7 @@ VERIFIED_ROLE_ID = XXXXXXXXXXXXXXXXXX
 VERIFICATION_MESSAGE_ID = XXXXXXXXXXXXXXXXXX
 LOG_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
 COMMAND_LOG_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
+CALC_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
 EXCLUDED_SPAM_CHECK_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
 
 # Anti-spam settings
@@ -727,6 +728,62 @@ async def delete_recent_messages(guild, user_id, time_limit):
             print(f"Missing permissions to read history in channel {channel.name}.")
         except discord.errors.HTTPException as e:
             print(f"Failed to retrieve history in channel {channel.name}: {e}")
+
+
+# Define the /c command
+@bot.command(name="c")
+async def calc_rewards(ctx, hashrate: float = None):
+    if ctx.channel.id != CALC_CHANNEL_ID:
+        msg = await ctx.send(
+            f"This command can only be used in the <#CALC_CHANNEL_ID> channel."
+        )
+        await asyncio.sleep(30)
+        await msg.delete()
+        return
+
+    if hashrate is None:
+        await ctx.send("Usage: /c <hashrate_in_MH/s>")
+        return
+
+    logging.debug(f"Received hashrate: {hashrate} MH/s")
+
+    # fetch block reward, network hashrate, and price
+    block_reward = await get_blockreward()
+    network_hashrate_ths = await get_hashrate()
+    kls_price = await get_price()
+
+    if block_reward and network_hashrate_ths and kls_price:
+        user_hashrate_ths = hashrate / 1_000_000  # MH/s to TH/s
+        percent_network = user_hashrate_ths / network_hashrate_ths
+
+        # blocks/24hr (1 block per second)
+        blocks_per_day = 86_400
+
+        # reward message
+        msg = (
+            f"**🌐 Network Hashrate:** {network_hashrate_ths:.3f} TH/s\n"
+            f"**⛏️ Block Reward:** {block_reward:.2f} KLS\n"
+            f"**💰 Price:** {kls_price:.4f} USD\n"
+            f"**📊 Estimated Rewards:**\n"
+        )
+
+        # rewards for various periods
+        rewards = calculate_rewards(block_reward, percent_network)
+        for period, reward in rewards.items():
+            profit_usd = reward * kls_price
+            msg += f"- {period}: {reward:.2f} KLS ({profit_usd:.3f} USD)\n"
+
+        await ctx.send(msg)
+    else:
+        await ctx.send("Error retrieving network data or KLS price. Try again later.")
+
+
+def calculate_rewards(block_reward, percent_network):
+    rewards = {}
+    rewards["Day"] = block_reward * (60 * 60 * 24) * percent_network
+    rewards["Week"] = block_reward * (60 * 60 * 24 * 7) * percent_network
+    rewards["Month"] = block_reward * (60 * 60 * 24 * (365.25 / 12)) * percent_network
+    return rewards
 
 
 bot.run(TOKEN)
