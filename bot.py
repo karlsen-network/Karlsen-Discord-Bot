@@ -5,68 +5,61 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict, deque
-import time
+import os
+from dotenv import load_dotenv
 
-# Configure OpenAI API key and bot token
-OPENAI_API_KEY = "XXXXXXXXXXXXXXXXXX"  # Replace with your OpenAI API key
-ASSISTANT_ID = "XXXXXXXXXXXXXXXXXX"  # Replace with your Assistant ID
-TOKEN = "XXXXXXXXXXXXXXXXXX"  # Replace with your bot token
+# bot config
+TOKEN = os.environ.get("TOKEN")
 
-# Set up logging
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s:%(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-# intents with all access
 intents = discord.Intents.all()
-
-# command prefix
 bot = commands.Bot(command_prefix="/", intents=intents)
 
-# Guild ID
-GUILD_ID = XXXXXXXXXXXXXXXXXX
+# channel IDs
+GUILD_ID = 1169939685280337930
 
-# Channel and role IDs
-OFFTOPIC_CHAT_ID = XXXXXXXXXXXXXXXXXX
-CATEGORY_ID = XXXXXXXXXXXXXXXXXX
-ROLE_ID = XXXXXXXXXXXXXXXXXX
-MEMBER_COUNT_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
-VERIFICATION_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
-VERIFIED_ROLE_ID = XXXXXXXXXXXXXXXXXX
-VERIFICATION_MESSAGE_ID = XXXXXXXXXXXXXXXXXX
-LOG_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
-COMMAND_LOG_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
-CALC_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
-EXCLUDED_SPAM_CHECK_CHANNEL_ID = XXXXXXXXXXXXXXXXXX
+CATEGORY_ID = 1177760986078380114
+ROLE_ID = 1176671753766981773
+MEMBER_COUNT_CHANNEL_ID = 1177760994538295368
+VERIFICATION_CHANNEL_ID = 1178781238597779649
+VERIFIED_ROLE_ID = 1176671753766981773
+VERIFICATION_MESSAGE_ID = 1249345407402639373
+LOG_CHANNEL_ID = 1249348835105574973
+COMMAND_LOG_CHANNEL_ID = 1249349276471922819
+CALC_CHANNEL_ID = 1284612340448497745
+EXCLUDED_SPAM_CHECK_CHANNEL_ID = [1175818515173888122, 1284612340448497745]
 
 # Anti-spam settings
-ACCOUNT_AGE_LIMIT = timedelta(days=X)
-SPAM_THRESHOLD = X
-SPAM_TIMEOUT = timedelta(minutes=X)
+ACCOUNT_AGE_LIMIT = timedelta(days=1)
+SPAM_THRESHOLD = 4
+SPAM_TIMEOUT = timedelta(minutes=30)
 
 # Keywords for checking display names and message content
 FLAGGED_DISPLAY_NAME_KEYWORDS = ["Name1", "Name2", "Name3", "Name4", "Name5"]
 BANNED_MESSAGE_KEYWORDS = ["Word1", "Word2", "Word3", "Word4", "Word5"]
 
-# Initialize tracking variables
+# tracking variables
 message_count = defaultdict(int)
 user_message_history = defaultdict(lambda: deque(maxlen=SPAM_THRESHOLD))
 user_warned = {}
 
-# Channel IDs for various metrics
+# Channel IDs for metrics
 CHANNEL_IDS = {
-    "Price:": XXXXXXXXXXXXXXXXXX,
-    "Max Supply:": XXXXXXXXXXXXXXXXXX,
-    "Mined KLS:": XXXXXXXXXXXXXXXXXX,
-    "Mined %:": XXXXXXXXXXXXXXXXXX,
-    "mcap:": XXXXXXXXXXXXXXXXXX,
-    "Nethash:": XXXXXXXXXXXXXXXXXX,
-    "cBlock:": XXXXXXXXXXXXXXXXXX,
-    "nBlock": XXXXXXXXXXXXXXXXXX,
-    "nReduction:": XXXXXXXXXXXXXXXXXX,
-    "24h Volume:": XXXXXXXXXXXXXXXXXX,
+    "Price:": 1187905364482588743,
+    "Max Supply:": 1187905657916117102,
+    "Mined KLS:": 1187905947927064627,
+    "Mined %:": 1187906295697784883,
+    "mcap:": 1187906650338762772,
+    "Nethash:": 1187907809073958923,
+    "cBlock:": 1249350925634637928,
+    "nBlock": 1249350946111356988,
+    "nReduction:": 1249351001316790446,
+    "24h Volume:": 1278485100253937686,
 }
 
 # Initialize max supply
@@ -232,7 +225,7 @@ def generate_channel_name(
     if supply_percentage:
         return f"Mined %: {mined_supply_percentage:.2f}%"
     if marketcap:
-        return f"mcap: {round(data / 1e6, 1)} mio"
+        return f"mcap: {data / 1e6:.2f} million $"
     if channel_name == "Mined KLS:":
         return f"{channel_name} {data / 1e9:.4f} billion"
     if channel_name == "cBlock:":
@@ -357,7 +350,7 @@ async def on_member_join(member):
     # log member joining along with account age and minimum required useraccount age
     await log_action(
         member.guild,
-        f"Member joined: {member.name} (ID: {member.id}), "
+        f"Member joined: <@{member.id}> (ID: {member.id}), "
         f"Account age: {account_age}, Minimum required account age: {minimum_age}",
     )
 
@@ -371,24 +364,15 @@ async def handle_suspicious_user(member, reason):
 
     if account_age < ACCOUNT_AGE_LIMIT:
         await send_dm(
-            member, "You have been kicked from the server due to suspicious activity."
-        )
-        await asyncio.sleep(1)
-        await member.kick(reason=reason)
-        logging.warning(f"Kicked {member.name} due to {reason} (ID: {member.id})")
-        await log_action(
-            member.guild, f"Kicked {member.name} due to {reason} (ID: {member.id})"
-        )
-    else:
-        await send_dm(
             member, "You have been banned from the server due to suspicious activity."
         )
-        await asyncio.sleep(1)
-        await member.ban(reason=reason)
-        logging.warning(f"Banned {member.name} due to {reason} (ID: {member.id})")
-        await log_action(
-            member.guild, f"Banned {member.name} due to {reason} (ID: {member.id})"
-        )
+
+    await asyncio.sleep(1)
+    await member.ban(reason=reason)
+    logging.warning(f"Banned {member.name} due to {reason} (ID: {member.id})")
+    await log_action(
+        member.guild, f"Banned {member.name} due to {reason} (ID: {member.id})"
+    )
 
     await delete_recent_messages(member.guild, member.id, timedelta(days=7))
 
@@ -444,14 +428,6 @@ async def on_message(message):
         )
 
     await handle_spam(message)
-
-    # Respond to every 500th message in the off-topic chat
-    if message.channel.id == OFFTOPIC_CHAT_ID:
-        message_count[OFFTOPIC_CHAT_ID] += 1
-        if message_count[OFFTOPIC_CHAT_ID] % 500 == 0:
-            response = await ask_openai_assistant(message.content)
-            await message.reply(response)
-
     await bot.process_commands(message)
 
 
@@ -485,8 +461,8 @@ async def handle_banned_user(member, reason, detected_keyword=None):
 
 
 async def handle_spam(message):
-    if message.channel.id == EXCLUDED_SPAM_CHECK_CHANNEL_ID:
-        return  # Skip spam check for the excluded channel
+    if message.channel.id in EXCLUDED_SPAM_CHECK_CHANNEL_ID:
+        return  # skip spam check for the excluded channels
 
     user_history = user_message_history[message.author.id]
     user_history.append(message.content)
@@ -505,12 +481,43 @@ async def handle_spam(message):
                     SPAM_TIMEOUT,
                     reason="Spamming the same message multiple times in a row.",
                 )
-                await message.channel.send(
+
+                # notifying about the timeout
+                timeout_message = await message.channel.send(
                     f"{message.author.mention} has been timed out for 15 minutes for spamming the same message multiple times in a row."
                 )
+
+                # log spam action with the username
+                await log_action(
+                    message.guild,
+                    f"Member: <@{message.author.id}> (ID: {message.author.id}) was timed out for spamming. @Karlsen Patrol",
+                )
+
                 logging.info(f"User {message.author} timed out for spamming.")
+
+                # deletion of the timeout
+                await asyncio.sleep(300)
+                await timeout_message.delete()
+
             except Exception as e:
                 logging.error(f"Failed to timeout user {message.author}: {e}")
+
+
+# log deleted messages, for special scammers
+@bot.event
+async def on_message_delete(message):
+    if message.author == bot.user:
+        return
+
+    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+
+    if log_channel and message.content:
+        log_message = f'User {message.author.mention} has deleted the following message: "{message.content}"'
+
+        # send message
+        await log_channel.send(log_message)
+    else:
+        logging.warning(f"Log channel {LOG_CHANNEL_ID} not found or message was empty.")
 
 
 @bot.command(name="b")
@@ -542,134 +549,6 @@ async def get_wallet_balance(address):
     return None
 
 
-# OpenAi Assistant API (using GPT4o-mini)
-async def ask_openai_assistant(user_input):
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json",
-        "OpenAI-Beta": "assistants=v1",
-    }
-    try:
-        thread_id = await create_thread(headers)
-        if not thread_id:
-            return "Failed to create thread."
-        await send_message_to_thread(headers, thread_id, user_input)
-        run_id, status = await run_thread(headers, thread_id)
-        if status != "completed":
-            return f"Run did not complete successfully. Status: {status}"
-        return await fetch_final_result(headers, thread_id, run_id)
-    except Exception as e:
-        logging.exception("An error occurred while interacting with the Assistant API.")
-        return f"An error occurred: {str(e)}"
-
-
-async def create_thread(headers):
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            "https://api.openai.com/v1/threads", headers=headers
-        ) as response:
-            if response.status == 200:
-                thread_data = await response.json()
-                logging.debug(
-                    f"Thread created successfully with ID: {thread_data['id']}"
-                )
-                return thread_data["id"]
-            else:
-                logging.error(
-                    f"Failed to create thread. Response: {await response.text()}"
-                )
-                return None
-
-
-async def send_message_to_thread(headers, thread_id, user_input):
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"https://api.openai.com/v1/threads/{thread_id}/messages",
-            headers=headers,
-            json={"role": "user", "content": user_input},
-        ) as response:
-            if response.status != 200:
-                logging.error(
-                    f"Failed to send message. Response: {await response.text()}"
-                )
-            logging.debug("Message sent successfully to the thread.")
-
-
-async def run_thread(headers, thread_id):
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"https://api.openai.com/v1/threads/{thread_id}/runs",
-            headers=headers,
-            json={"assistant_id": ASSISTANT_ID},
-        ) as response:
-            if response.status == 200:
-                run_data = await response.json()
-                run_id = run_data["id"]
-                status = run_data["status"]
-                start_time = time.time()
-                logging.debug(
-                    f"Thread run initiated with ID: {run_id}, initial status: {status}"
-                )
-                while status in ["queued", "in_progress"]:
-                    await asyncio.sleep(0.5)
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(
-                            f"https://api.openai.com/v1/threads/{thread_id}/runs/{run_id}",
-                            headers=headers,
-                        ) as check_response:
-                            status = (await check_response.json())["status"]
-                            logging.debug(
-                                f"Current status of run ID {run_id}: {status}"
-                            )
-                            if time.time() - start_time > 29:
-                                logging.error(
-                                    "Timeout waiting for the run to complete."
-                                )
-                                return run_id, "timeout"
-                return run_id, status
-            else:
-                logging.error(
-                    f"Failed to run thread. Response: {await response.text()}"
-                )
-                return None, "error"
-
-
-async def fetch_final_result(headers, thread_id, run_id):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            f"https://api.openai.com/v1/threads/{thread_id}/messages", headers=headers
-        ) as response:
-            if response.status == 200:
-                messages_data = await response.json()
-                for message in reversed(messages_data["data"]):
-                    if message["role"] == "assistant" and message["content"]:
-                        content_item = next(
-                            (c for c in message["content"] if c["type"] == "text"), None
-                        )
-                        if content_item and content_item["text"]["value"]:
-                            return content_item["text"]["value"]
-                logging.error("Assistant's final response not found.")
-                return "Assistant's final response not found."
-            else:
-                logging.error(
-                    f"Failed to fetch messages. Response: {await response.text()}"
-                )
-                return "Failed to fetch messages."
-
-
-@bot.command(name="ask")
-async def ask_kls(ctx, *, question: str):
-    if ctx.channel.id != COMMAND_LOG_CHANNEL_ID:
-        await ctx.send("This command can only be used in the designated channels.")
-        return
-    try:
-        response = await ask_openai_assistant(question)
-        await ctx.send(f"**Q:** {question}\n**A:** {response}")
-    except Exception as e:
-        logging.error(f"Error in Assistant API request: {e}")
-        await ctx.send("Sorry, I couldn't process your request.")
-
-
 @bot.command(name="commands")
 async def commands_command(ctx):
     if ctx.channel.id != COMMAND_LOG_CHANNEL_ID:
@@ -681,10 +560,6 @@ async def commands_command(ctx):
 1. **/b <wallet_address>**
    - Usage: `/b karlsen:qzrq7v5jhsc5znvtfdg6vxg7dz5x8dqe4wrh90jkdnwehp6vr8uj7csdss2l7`
    - Description: Retrieves and displays the balance for the specified wallet address.
-
-2. **/ask <question>**
-   - Usage: `/ask What is the Karlsen Network?`
-   - Description: Provides an intelligent response to your question using OpenAI's Assistants API.
     """
     await ctx.send(help_text)
 
@@ -735,7 +610,7 @@ async def delete_recent_messages(guild, user_id, time_limit):
 async def calc_rewards(ctx, hashrate: float = None):
     if ctx.channel.id != CALC_CHANNEL_ID:
         msg = await ctx.send(
-            f"This command can only be used in the <#CALC_CHANNEL_ID> channel."
+            f"This command can only be used in the <#1284612340448497745> channel."
         )
         await asyncio.sleep(30)
         await msg.delete()
@@ -753,22 +628,21 @@ async def calc_rewards(ctx, hashrate: float = None):
     kls_price = await get_price()
 
     if block_reward and network_hashrate_ths and kls_price:
-        user_hashrate_ths = hashrate / 1_000_000  # MH/s to TH/s
+        user_hashrate_ths = hashrate / 1e6  # MH/s to TH/s
         percent_network = user_hashrate_ths / network_hashrate_ths
 
-        # blocks/24hr (1 block per second)
         blocks_per_day = 86_400
+        total_reward_per_day = block_reward * blocks_per_day
 
-        # reward message
         msg = (
-            f"**🌐 Network Hashrate:** {network_hashrate_ths:.3f} TH/s\n"
-            f"**⛏️ Block Reward:** {block_reward:.2f} KLS\n"
-            f"**💰 Price:** {kls_price:.4f} USD\n"
+            f"**🌐 Network Hashrate:** {network_hashrate_ths:.3f} TH/s\n\n"
+            f"**⛏️ Block Reward:** {block_reward:.2f} KLS\n\n"
+            f"**💰 Price:** {kls_price:.4f} USD\n\n"
             f"**📊 Estimated Rewards:**\n"
         )
 
-        # rewards for various periods
-        rewards = calculate_rewards(block_reward, percent_network)
+        # Rewards for various periods
+        rewards = calculate_rewards(total_reward_per_day, percent_network)
         for period, reward in rewards.items():
             profit_usd = reward * kls_price
             msg += f"- {period}: {reward:.2f} KLS ({profit_usd:.3f} USD)\n"
@@ -778,11 +652,11 @@ async def calc_rewards(ctx, hashrate: float = None):
         await ctx.send("Error retrieving network data or KLS price. Try again later.")
 
 
-def calculate_rewards(block_reward, percent_network):
+def calculate_rewards(total_reward_per_day, percent_network):
     rewards = {}
-    rewards["Day"] = block_reward * (60 * 60 * 24) * percent_network
-    rewards["Week"] = block_reward * (60 * 60 * 24 * 7) * percent_network
-    rewards["Month"] = block_reward * (60 * 60 * 24 * (365.25 / 12)) * percent_network
+    rewards["Day"] = total_reward_per_day * percent_network
+    rewards["Week"] = total_reward_per_day * percent_network * 7
+    rewards["Month"] = total_reward_per_day * percent_network * (365.25 / 12)
     return rewards
 
 
